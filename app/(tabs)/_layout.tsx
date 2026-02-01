@@ -40,6 +40,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="stats"
+        options={{
+          tabBarIcon: ({ focused }) => <TabIcon name="STATS" focused={focused} />,
+        }}
+      />
+      <Tabs.Screen
         name="calendar"
         options={{
           tabBarIcon: ({ focused }) => <TabIcon name="CALENDAR" focused={focused} />,

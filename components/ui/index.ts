@@ -5,3 +5,6 @@ export { DatePicker } from './DatePicker';
 export { ScanLines } from './ScanLines';
 export { EmptyState } from './EmptyState';
 export { LoadingScreen } from './LoadingScreen';
+export { PRBadge } from './PRBadge';
+export { StreakBadge } from './StreakBadge';
+export { AchievementPopup } from './AchievementPopup';

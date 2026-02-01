@@ -73,6 +73,13 @@ export default function Home() {
     router.push('/schedule/create');
   };
 
+  const handleOpenTemplates = () => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/templates');
+  };
+
   return (
     <View className="flex-1 bg-setly-black justify-center items-center px-8">
       {/* Decorative elements */}
@@ -116,18 +123,32 @@ export default function Home() {
         </Text>
       </Pressable>
 
-      {/* Schedule button */}
-      <Pressable
-        onPress={handleScheduleWorkout}
-        className="mt-4 px-8 py-3 active:opacity-70"
-      >
-        <Text
-          className="text-setly-muted text-sm tracking-wider"
-          style={{ fontFamily: 'SpaceMono_400Regular' }}
+      {/* Secondary buttons */}
+      <View className="flex-row gap-4 mt-4">
+        <Pressable
+          onPress={handleOpenTemplates}
+          className="px-6 py-3 border border-setly-border active:bg-white/5"
         >
-          + SCHEDULE
-        </Text>
-      </Pressable>
+          <Text
+            className="text-setly-text text-sm tracking-wider"
+            style={{ fontFamily: 'SpaceMono_400Regular' }}
+          >
+            TEMPLATES
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={handleScheduleWorkout}
+          className="px-6 py-3 active:opacity-70"
+        >
+          <Text
+            className="text-setly-muted text-sm tracking-wider"
+            style={{ fontFamily: 'SpaceMono_400Regular' }}
+          >
+            + SCHEDULE
+          </Text>
+        </Pressable>
+      </View>
 
       {/* Last workout info */}
       <View className="mt-8 items-center">

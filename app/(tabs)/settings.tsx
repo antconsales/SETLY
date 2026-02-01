@@ -65,6 +65,20 @@ export default function Settings() {
     router.push('/premium');
   };
 
+  const handleOpenCalculator = () => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/tools/calculator');
+  };
+
+  const handleOpenExport = () => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/settings/export');
+  };
+
   const formatRestTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -248,6 +262,58 @@ export default function Settings() {
             </Text>
           </View>
           <View className={`w-3 h-3 rounded-full ${notificationsEnabled ? 'bg-setly-accent' : 'border border-setly-muted'}`} />
+        </Pressable>
+
+        {/* Tools Section */}
+        <View className="px-6 pt-6 pb-2">
+          <Text
+            className="text-setly-muted text-xs tracking-wider"
+            style={{ fontFamily: 'SpaceMono_400Regular' }}
+          >
+            TOOLS
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={handleOpenCalculator}
+          className="px-6 py-4 flex-row justify-between items-center border-b border-setly-border active:bg-white/5"
+        >
+          <View>
+            <Text
+              className="text-setly-text text-sm"
+              style={{ fontFamily: 'SpaceMono_700Bold' }}
+            >
+              CALCOLATORI
+            </Text>
+            <Text
+              className="text-setly-muted text-xs tracking-wider mt-1"
+              style={{ fontFamily: 'SpaceMono_400Regular' }}
+            >
+              1RM e dischi bilanciere
+            </Text>
+          </View>
+          <Text className="text-setly-muted">→</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={handleOpenExport}
+          className="px-6 py-4 flex-row justify-between items-center border-b border-setly-border active:bg-white/5"
+        >
+          <View>
+            <Text
+              className="text-setly-text text-sm"
+              style={{ fontFamily: 'SpaceMono_700Bold' }}
+            >
+              ESPORTA DATI
+            </Text>
+            <Text
+              className="text-setly-muted text-xs tracking-wider mt-1"
+              style={{ fontFamily: 'SpaceMono_400Regular' }}
+            >
+              JSON o CSV per backup
+            </Text>
+          </View>
+          <Text className="text-setly-muted">→</Text>
         </Pressable>
 
         {/* Premium Section */}

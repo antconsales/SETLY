@@ -1,5 +1,5 @@
-import { View, Text, Pressable } from 'react-native';
-import { useEffect, useCallback } from 'react';
+import { View, Text, Pressable, TextInput, Modal, ScrollView } from 'react-native';
+import { useEffect, useCallback, useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -11,13 +11,27 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { useWorkoutStore, useSettingsStore } from '@/stores';
-import { useTimer } from '@/hooks';
+import { useTimer, usePersonalRecords } from '@/hooks';
+import { PRBadge } from '@/components/ui';
 
 export default function ActiveWorkout() {
   const { exerciseName } = useLocalSearchParams<{ exerciseName: string }>();
   const { seconds, formattedTime, formatTime } = useTimer();
   const { session, endSet, startRest, endRest, finishWorkout, cancelWorkout } = useWorkoutStore();
   const { hapticEnabled } = useSettingsStore();
+
+  // Input modal state
+  const [showInputModal, setShowInputModal] = useState(false);
+  const [repsInput, setRepsInput] = useState('');
+  const [weightInput, setWeightInput] = useState('');
+  const [setDuration, setSetDuration] = useState(0);
+
+  // PR tracking
+  const { checkPR, refresh: refreshPRs } = usePersonalRecords(session?.exerciseId);
+  const [showPRBadge, setShowPRBadge] = useState(false);
+  const [prType, setPrType] = useState<'weight' | 'volume' | 'both'>('weight');
+  const [prPrevValue, setPrPrevValue] = useState<number | null>(null);
+  const [prNewValue, setPrNewValue] = useState(0);
 
   const currentSet = session ? session.sets.length + 1 : 1;
   const totalSets = session?.plannedSets || 4;
@@ -41,12 +55,66 @@ export default function ActiveWorkout() {
     opacity: glowOpacity.value,
   }));
 
+  // Open modal to input reps/weight
   const handleEndSet = useCallback(() => {
     if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    setSetDuration(seconds);
+    setShowInputModal(true);
+  }, [hapticEnabled, seconds]);
+
+  // Confirm set with reps/weight
+  const handleConfirmSet = useCallback(() => {
+    const reps = repsInput ? parseInt(repsInput, 10) : undefined;
+    const weight = weightInput ? parseFloat(weightInput) : undefined;
+
+    // Check for PR before saving
+    if (session?.exerciseId && weight && reps) {
+      const prCheck = checkPR(session.exerciseId, weight, reps);
+      const volume = weight * reps;
+
+      if (prCheck.isNewWeightPR || prCheck.isNewVolumePR) {
+        // Show PR celebration!
+        if (prCheck.isNewWeightPR && prCheck.isNewVolumePR) {
+          setPrType('both');
+          setPrPrevValue(prCheck.previousMaxWeight);
+          setPrNewValue(weight);
+        } else if (prCheck.isNewWeightPR) {
+          setPrType('weight');
+          setPrPrevValue(prCheck.previousMaxWeight);
+          setPrNewValue(weight);
+        } else {
+          setPrType('volume');
+          setPrPrevValue(prCheck.previousMaxVolume);
+          setPrNewValue(volume);
+        }
+        setShowPRBadge(true);
+      } else if (hapticEnabled) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } else if (hapticEnabled) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    endSet(seconds);
-  }, [hapticEnabled, endSet, seconds]);
+
+    endSet(setDuration, reps, weight);
+
+    // Reset inputs
+    setRepsInput('');
+    setWeightInput('');
+    setShowInputModal(false);
+  }, [hapticEnabled, endSet, setDuration, repsInput, weightInput, session?.exerciseId, checkPR]);
+
+  // Skip reps/weight input
+  const handleSkipInput = useCallback(() => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    endSet(setDuration);
+    setRepsInput('');
+    setWeightInput('');
+    setShowInputModal(false);
+  }, [hapticEnabled, endSet, setDuration]);
 
   const handleStopRest = useCallback(async () => {
     if (hapticEnabled) {
@@ -102,6 +170,19 @@ export default function ActiveWorkout() {
 
   return (
     <View className="flex-1 bg-setly-black items-center justify-center px-8">
+      {/* PR Badge */}
+      {showPRBadge && (
+        <PRBadge
+          type={prType}
+          previousValue={prPrevValue}
+          newValue={prNewValue}
+          onComplete={() => {
+            setShowPRBadge(false);
+            refreshPRs(); // Refresh PRs after setting new one
+          }}
+        />
+      )}
+
       {/* Battery indicator - top right */}
       <View className="absolute top-14 right-6 flex-row gap-0.5">
         {[...Array(5)].map((_, i) => (
@@ -202,6 +283,30 @@ export default function ActiveWorkout() {
         </Text>
       )}
 
+      {/* Completed sets display */}
+      {session && session.sets.length > 0 && (
+        <View className="absolute top-40 left-8 right-8">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+            {session.sets.map((set, index) => (
+              <View key={index} className="mr-3 px-3 py-2 border border-setly-border rounded">
+                <Text
+                  className="text-setly-muted text-xs"
+                  style={{ fontFamily: 'SpaceMono_400Regular' }}
+                >
+                  SET {set.setNumber}
+                </Text>
+                <Text
+                  className="text-setly-text text-sm"
+                  style={{ fontFamily: 'SpaceMono_700Bold' }}
+                >
+                  {set.weight ? `${set.weight}kg` : '-'} × {set.reps || '-'}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Action button */}
       <View className="absolute bottom-16 w-full px-8">
         <Pressable
@@ -226,6 +331,108 @@ export default function ActiveWorkout() {
           </Text>
         </Pressable>
       </View>
+
+      {/* Reps/Weight Input Modal */}
+      <Modal
+        visible={showInputModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInputModal(false)}
+      >
+        <View className="flex-1 bg-black/80 justify-center items-center px-8">
+          <View className="w-full bg-setly-black border border-setly-border p-6">
+            {/* Modal header */}
+            <Text
+              className="text-setly-text text-lg tracking-widest text-center mb-6"
+              style={{ fontFamily: 'SpaceMono_700Bold' }}
+            >
+              SET {currentSet} COMPLETATO
+            </Text>
+
+            {/* Weight input */}
+            <View className="mb-4">
+              <Text
+                className="text-setly-muted text-xs tracking-wider mb-2"
+                style={{ fontFamily: 'SpaceMono_400Regular' }}
+              >
+                PESO (KG)
+              </Text>
+              <TextInput
+                value={weightInput}
+                onChangeText={setWeightInput}
+                placeholder="0"
+                placeholderTextColor="#666"
+                keyboardType="decimal-pad"
+                className="border border-setly-border px-4 py-3 text-setly-text text-xl text-center"
+                style={{ fontFamily: 'SpaceMono_700Bold' }}
+              />
+            </View>
+
+            {/* Reps input */}
+            <View className="mb-6">
+              <Text
+                className="text-setly-muted text-xs tracking-wider mb-2"
+                style={{ fontFamily: 'SpaceMono_400Regular' }}
+              >
+                RIPETIZIONI
+              </Text>
+              <TextInput
+                value={repsInput}
+                onChangeText={setRepsInput}
+                placeholder="0"
+                placeholderTextColor="#666"
+                keyboardType="number-pad"
+                className="border border-setly-border px-4 py-3 text-setly-text text-xl text-center"
+                style={{ fontFamily: 'SpaceMono_700Bold' }}
+              />
+            </View>
+
+            {/* Quick reps buttons */}
+            <View className="flex-row justify-center gap-3 mb-6">
+              {[6, 8, 10, 12, 15].map((num) => (
+                <Pressable
+                  key={num}
+                  onPress={() => {
+                    if (hapticEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setRepsInput(num.toString());
+                  }}
+                  className={`px-4 py-2 border ${repsInput === num.toString() ? 'border-setly-accent bg-setly-accent/10' : 'border-setly-border'}`}
+                >
+                  <Text
+                    className={`text-sm ${repsInput === num.toString() ? 'text-setly-accent' : 'text-setly-text'}`}
+                    style={{ fontFamily: 'SpaceMono_700Bold' }}
+                  >
+                    {num}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Confirm button */}
+            <Pressable
+              onPress={handleConfirmSet}
+              className="py-4 border border-setly-accent bg-setly-accent/10 mb-3"
+            >
+              <Text
+                className="text-setly-accent text-center tracking-widest"
+                style={{ fontFamily: 'SpaceMono_700Bold' }}
+              >
+                CONFERMA
+              </Text>
+            </Pressable>
+
+            {/* Skip button */}
+            <Pressable onPress={handleSkipInput} className="py-3">
+              <Text
+                className="text-setly-muted text-center text-sm tracking-wider"
+                style={{ fontFamily: 'SpaceMono_400Regular' }}
+              >
+                SALTA
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
