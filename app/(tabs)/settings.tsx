@@ -79,6 +79,13 @@ export default function Settings() {
     router.push('/settings/export');
   };
 
+  const handleOpenTemplates = () => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/templates');
+  };
+
   const formatRestTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -296,6 +303,27 @@ export default function Settings() {
         </Pressable>
 
         <Pressable
+          onPress={handleOpenTemplates}
+          className="px-6 py-4 flex-row justify-between items-center border-b border-setly-border active:bg-white/5"
+        >
+          <View>
+            <Text
+              className="text-setly-text text-sm"
+              style={{ fontFamily: 'SpaceMono_700Bold' }}
+            >
+              TEMPLATES
+            </Text>
+            <Text
+              className="text-setly-muted text-xs tracking-wider mt-1"
+              style={{ fontFamily: 'SpaceMono_400Regular' }}
+            >
+              Programmi predefiniti
+            </Text>
+          </View>
+          <Text className="text-setly-muted">→</Text>
+        </Pressable>
+
+        <Pressable
           onPress={handleOpenExport}
           className="px-6 py-4 flex-row justify-between items-center border-b border-setly-border active:bg-white/5"
         >
@@ -304,13 +332,13 @@ export default function Settings() {
               className="text-setly-text text-sm"
               style={{ fontFamily: 'SpaceMono_700Bold' }}
             >
-              ESPORTA DATI
+              EXPORT
             </Text>
             <Text
               className="text-setly-muted text-xs tracking-wider mt-1"
               style={{ fontFamily: 'SpaceMono_400Regular' }}
             >
-              JSON o CSV per backup
+              Backup JSON/CSV
             </Text>
           </View>
           <Text className="text-setly-muted">→</Text>
