@@ -12,6 +12,9 @@ export type {
   NewWorkoutPhoto,
 } from '../db/schema';
 
+// LLM / AI types (re-exported from modelManager)
+export type { ModelState, ModelStatus } from '../lib/llm/modelManager';
+
 // App-specific types
 export interface WorkoutSession {
   exerciseId: number;
