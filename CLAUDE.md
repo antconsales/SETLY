@@ -35,7 +35,7 @@ App di workout tracking per iOS/Android, 100% offline-first. React Native + Expo
 - [x] Creare `lib/llm/chatService.ts` — Orchestrazione completa: build prompt da history + system prompt → `context.completion()` → parse response → execute tool → re-prompt per risposta NL. Max 3 tool calls per turno, history limitata a 10 messaggi
 
 ### Phase 2 - State Management
-- [ ] Creare `stores/chatStore.ts` — Zustand store: `messages: ChatMessage[]`, `isGenerating`, `modelStatus: ModelStatus`. Solo `modelStatus.state` persistito in AsyncStorage. Aggiornare `stores/index.ts` con export
+- [x] Creare `stores/chatStore.ts` — Zustand store: `messages: ChatMessage[]`, `isGenerating`, `modelStatus: ModelStatus`. Solo `modelStatus.state` persistito in AsyncStorage. Aggiornare `stores/index.ts` con export
 
 ### Phase 3 - Componenti UI
 - [ ] Creare `components/ui/ChatBubble.tsx` — Bolla messaggio: user (self-end, border-setly-text/30), assistant (self-start, border-setly-border), tool result (self-center, setly-accent/30, testo piccolo), loading (3 dots animati). SpaceMono font, no border-radius
