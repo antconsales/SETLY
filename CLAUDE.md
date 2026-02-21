@@ -55,4 +55,4 @@ App di workout tracking per iOS/Android, 100% offline-first. React Native + Expo
 - [x] Migliorare `app/(tabs)/calendar.tsx` — Migliorare transizioni mese, aggiungere scroll gesture, migliorare DayDetail modal
 - [x] Migliorare `app/(tabs)/settings.tsx` — Aggiungere sezione "AI Assistant" con toggle per gestire modello (scarica/elimina), mostrare dimensione modello e stato
 - [x] Migliorare `app/workout/active.tsx` — Migliorare animazioni ring progress, aggiungere feedback visivo piu' chiaro per cambio stato (working/resting), migliorare modal input reps/weight
-- [ ] Migliorare `app/workout/summary.tsx` — Aggiungere statistiche dettagliate post-workout, PR ottenuti, confronto con sessione precedente, achievement sbloccati
+- [x] Migliorare `app/workout/summary.tsx` — Aggiungere statistiche dettagliate post-workout, PR ottenuti, confronto con sessione precedente, achievement sbloccati
