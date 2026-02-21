@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolCall": [
+      {
+        "matcher": "Task|Bash|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if grep -qiE '(roadmap|continua|next task|prossimo task)' /tmp/.claude-last-prompt 2>/dev/null; then echo '[SKILL REMINDER] The user wants to work on the roadmap. Use the roadmap-pilot skill instructions from .claude/skills/roadmap-pilot/SKILL.md. Execute exactly ONE task, mark it done, commit, and hand off.'; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ -f CLAUDE.md ] && grep -q '^\\- \\[x\\]' CLAUDE.md; then DONE=$(grep -c '^\\- \\[x\\]' CLAUDE.md); TOTAL=$(grep -c '^\\- \\[.\\]' CLAUDE.md); echo \"Roadmap progress: ${DONE}/${TOTAL}\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
