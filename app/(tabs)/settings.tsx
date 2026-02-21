@@ -1,7 +1,7 @@
-import { View, Text, ScrollView, Pressable, Switch, Linking } from 'react-native';
+import { View, Text, ScrollView, Pressable, Switch, Alert } from 'react-native';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { useSettingsStore, useScheduleStore } from '@/stores';
+import { useSettingsStore, useScheduleStore, useChatStore } from '@/stores';
 
 export default function Settings() {
   const {
@@ -16,6 +16,8 @@ export default function Settings() {
   } = useSettingsStore();
 
   const { notificationsEnabled, enableNotifications } = useScheduleStore();
+
+  const { modelStatus, downloadModel, deleteModel, cancelDownload } = useChatStore();
 
   const handleToggleHaptic = () => {
     if (hapticEnabled) {
@@ -86,12 +88,86 @@ export default function Settings() {
     router.push('/templates');
   };
 
+  const handleDownloadModel = async () => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    await downloadModel();
+  };
+
+  const handleDeleteModel = () => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    }
+    Alert.alert(
+      'ELIMINA MODELLO AI',
+      'Vuoi eliminare il modello AI (~200 MB)? Potrai riscaricarlo in qualsiasi momento.',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Elimina',
+          style: 'destructive',
+          onPress: () => deleteModel(),
+        },
+      ]
+    );
+  };
+
+  const handleCancelDownload = async () => {
+    if (hapticEnabled) {
+      Haptics.selectionAsync();
+    }
+    await cancelDownload();
+  };
+
+  const handleOpenChat = () => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    router.push('/ai/chat');
+  };
+
   const formatRestTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     if (mins === 0) return `${secs}s`;
     if (secs === 0) return `${mins}m`;
     return `${mins}m ${secs}s`;
+  };
+
+  // Model status label
+  const getModelStatusLabel = () => {
+    switch (modelStatus.state) {
+      case 'not_downloaded':
+        return 'NON SCARICATO';
+      case 'downloading':
+        return `SCARICAMENTO ${modelStatus.progress}%`;
+      case 'downloaded':
+        return 'SCARICATO';
+      case 'loading':
+        return 'CARICAMENTO...';
+      case 'ready':
+        return 'PRONTO';
+      case 'error':
+        return 'ERRORE';
+      default:
+        return 'SCONOSCIUTO';
+    }
+  };
+
+  const getModelStatusColor = () => {
+    switch (modelStatus.state) {
+      case 'ready':
+      case 'downloaded':
+        return 'bg-setly-accent';
+      case 'downloading':
+      case 'loading':
+        return 'bg-yellow-400';
+      case 'error':
+        return 'bg-red-500';
+      default:
+        return 'border border-setly-muted';
+    }
   };
 
   return (
@@ -107,6 +183,128 @@ export default function Settings() {
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* AI Assistant Section */}
+        <View className="px-6 pt-6 pb-2">
+          <Text
+            className="text-setly-muted text-xs tracking-wider"
+            style={{ fontFamily: 'SpaceMono_400Regular' }}
+          >
+            AI ASSISTANT
+          </Text>
+        </View>
+
+        {/* AI Status row */}
+        <View className="px-6 py-4 border-b border-setly-border">
+          <View className="flex-row justify-between items-center mb-3">
+            <View className="flex-row items-center gap-2">
+              <View className={`w-2 h-2 rounded-full ${getModelStatusColor()}`} />
+              <Text
+                className="text-setly-text text-sm"
+                style={{ fontFamily: 'SpaceMono_700Bold' }}
+              >
+                SETLY AI
+              </Text>
+            </View>
+            <Text
+              className="text-setly-muted text-xs tracking-wider"
+              style={{ fontFamily: 'SpaceMono_400Regular' }}
+            >
+              {getModelStatusLabel()}
+            </Text>
+          </View>
+
+          <Text
+            className="text-setly-muted text-xs tracking-wider mb-3"
+            style={{ fontFamily: 'SpaceMono_400Regular' }}
+          >
+            Assistente AI on-device (~200 MB). Funziona completamente offline.
+          </Text>
+
+          {/* Download progress bar */}
+          {modelStatus.state === 'downloading' && (
+            <View className="mb-3">
+              <View className="h-1 bg-setly-border w-full">
+                <View
+                  className="h-1 bg-setly-accent"
+                  style={{ width: `${modelStatus.progress}%` }}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Action buttons */}
+          <View className="flex-row gap-3">
+            {modelStatus.state === 'not_downloaded' && (
+              <Pressable
+                onPress={handleDownloadModel}
+                className="px-4 py-2 border border-setly-accent bg-setly-accent/10 active:bg-setly-accent/20"
+              >
+                <Text
+                  className="text-setly-accent text-xs tracking-wider"
+                  style={{ fontFamily: 'SpaceMono_700Bold' }}
+                >
+                  SCARICA
+                </Text>
+              </Pressable>
+            )}
+
+            {modelStatus.state === 'downloading' && (
+              <Pressable
+                onPress={handleCancelDownload}
+                className="px-4 py-2 border border-setly-border active:bg-white/5"
+              >
+                <Text
+                  className="text-setly-muted text-xs tracking-wider"
+                  style={{ fontFamily: 'SpaceMono_400Regular' }}
+                >
+                  ANNULLA
+                </Text>
+              </Pressable>
+            )}
+
+            {(modelStatus.state === 'downloaded' || modelStatus.state === 'ready') && (
+              <>
+                <Pressable
+                  onPress={handleOpenChat}
+                  className="px-4 py-2 border border-setly-accent bg-setly-accent/10 active:bg-setly-accent/20"
+                >
+                  <Text
+                    className="text-setly-accent text-xs tracking-wider"
+                    style={{ fontFamily: 'SpaceMono_700Bold' }}
+                  >
+                    APRI CHAT
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleDeleteModel}
+                  className="px-4 py-2 border border-setly-border active:bg-white/5"
+                >
+                  <Text
+                    className="text-setly-muted text-xs tracking-wider"
+                    style={{ fontFamily: 'SpaceMono_400Regular' }}
+                  >
+                    ELIMINA
+                  </Text>
+                </Pressable>
+              </>
+            )}
+
+            {modelStatus.state === 'error' && (
+              <Pressable
+                onPress={handleDownloadModel}
+                className="px-4 py-2 border border-setly-border active:bg-white/5"
+              >
+                <Text
+                  className="text-setly-muted text-xs tracking-wider"
+                  style={{ fontFamily: 'SpaceMono_400Regular' }}
+                >
+                  RIPROVA
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+
         {/* Workout Defaults Section */}
         <View className="px-6 pt-6 pb-2">
           <Text
