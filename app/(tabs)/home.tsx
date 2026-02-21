@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { useCallback } from 'react';
 import { useLastWorkout } from '@/hooks';
 import { useSettingsStore } from '@/stores';
+import { AIFab } from '@/components/ui';
 
 export default function Home() {
   const { lastWorkout, isLoading, refetch } = useLastWorkout();
@@ -59,6 +60,8 @@ export default function Home() {
           </Text>
         )}
       </View>
+
+      <AIFab />
     </View>
   );
 }
