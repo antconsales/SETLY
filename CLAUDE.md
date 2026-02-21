@@ -44,7 +44,7 @@ App di workout tracking per iOS/Android, 100% offline-first. React Native + Expo
 
 ### Phase 4 - Schermata Chat AI
 - [x] Creare `app/ai/_layout.tsx` — Stack layout per route group AI, `animation: 'slide_from_bottom'`, headerShown false, bg #0A0A0A
-- [ ] Creare `app/ai/chat.tsx` — Schermata chat completa: header "AI ASSISTANT" con back + clear, ModelDownload card se modello non scaricato, FlatList inverted per messaggi con ChatBubble, TextInput con bottone send, quick action chips quando chat vuota ("Mostra statistiche", "Calcola 1RM", "Quali esercizi ho?", "Programma allenamento"). Integrazione con chatService, gestione focus/unfocus per load/unload modello
+- [x] Creare `app/ai/chat.tsx` — Schermata chat completa: header "AI ASSISTANT" con back + clear, ModelDownload card se modello non scaricato, FlatList inverted per messaggi con ChatBubble, TextInput con bottone send, quick action chips quando chat vuota ("Mostra statistiche", "Calcola 1RM", "Quali esercizi ho?", "Programma allenamento"). Integrazione con chatService, gestione focus/unfocus per load/unload modello
 
 ### Phase 5 - Integrazione e Wiring
 - [ ] Aggiungere `<AIFab />` in `app/(tabs)/home.tsx` — Import e render come ultimo figlio del View root, con haptic feedback
