@@ -28,7 +28,7 @@ App di workout tracking per iOS/Android, 100% offline-first. React Native + Expo
 
 ### Phase 1 - LLM Foundation (engine, nessuna UI)
 - [x] Creare `lib/llm/tools.ts` — Definire le 18 tool definitions (get_exercises, get_stats, calculate_1rm, add_exercise, schedule_workout, navigate, ecc.) con tipi TypeScript
-- [ ] Creare `lib/llm/systemPrompt.ts` — Costruire il system prompt builder nel formato FunctionGemma (`<start_of_turn>`, tool schemas, persona SETLY AI in italiano)
+- [x] Creare `lib/llm/systemPrompt.ts` — Costruire il system prompt builder nel formato FunctionGemma (`<start_of_turn>`, tool schemas, persona SETLY AI in italiano)
 - [ ] Creare `lib/llm/responseParser.ts` — Parser per output modello: estrae `[FUNC_CALL] {"name":..., "arguments":...}` o testo libero, gestisce JSON malformato
 - [ ] Creare `lib/llm/modelManager.ts` — Download GGUF con progress via `expo-file-system`, cache in `documentDirectory/models/`, init/release `LlamaContext` da `llama.rn`, gestione stati (not_downloaded, downloading, downloaded, loading, ready, error)
 - [ ] Creare `lib/llm/toolExecutor.ts` — Dispatcher switch/case su 18 tool names → chiama store Zustand/calcoli da `lib/calculations.ts`. Accetta `StoreRefs` interface per ricevere azioni dagli store senza usare hooks direttamente
