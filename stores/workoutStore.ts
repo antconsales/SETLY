@@ -10,11 +10,12 @@ interface WorkoutState {
   // Timer state
   timerSeconds: number;
   isRunning: boolean;
+  restTargetSeconds: number; // countdown target for rest (0 = count up)
 
   // Actions
   startWorkout: (exerciseId: number, exerciseName: string, plannedSets: number) => void;
   endSet: (duration: number, reps?: number, weight?: number) => void;
-  startRest: () => void;
+  startRest: (restSeconds?: number) => void;
   endRest: () => void;
   tickTimer: () => void;
   resetTimer: () => void;
@@ -26,6 +27,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   session: null,
   timerSeconds: 0,
   isRunning: false,
+  restTargetSeconds: 0,
 
   startWorkout: (exerciseId, exerciseName, plannedSets) => {
     set({
@@ -40,11 +42,12 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       },
       timerSeconds: 0,
       isRunning: true,
+      restTargetSeconds: 0,
     });
   },
 
   endSet: (duration, reps, weight) => {
-    const { session } = get();
+    const { session, restTargetSeconds } = get();
     if (!session) return;
 
     const newSet: SetData = {
@@ -55,18 +58,19 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       completedAt: new Date(),
     };
 
+    // Start rest countdown from target seconds (or count up from 0)
     set({
       session: {
         ...session,
         sets: [...session.sets, newSet],
         isResting: true,
       },
-      timerSeconds: 0,
+      timerSeconds: restTargetSeconds > 0 ? restTargetSeconds : 0,
       isRunning: true,
     });
   },
 
-  startRest: () => {
+  startRest: (restSeconds) => {
     const { session } = get();
     if (!session) return;
 
@@ -75,19 +79,25 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         ...session,
         isResting: true,
       },
-      timerSeconds: 0,
+      timerSeconds: restSeconds && restSeconds > 0 ? restSeconds : 0,
+      restTargetSeconds: restSeconds && restSeconds > 0 ? restSeconds : 0,
       isRunning: true,
     });
   },
 
   endRest: () => {
-    const { session } = get();
+    const { session, timerSeconds, restTargetSeconds } = get();
     if (!session) return;
+
+    // Calculate actual rest duration
+    const restDuration = restTargetSeconds > 0
+      ? restTargetSeconds - timerSeconds // countdown: target - remaining
+      : timerSeconds; // count up: elapsed seconds
 
     // Update last set with rest duration
     const updatedSets = [...session.sets];
     if (updatedSets.length > 0) {
-      updatedSets[updatedSets.length - 1].restAfter = get().timerSeconds;
+      updatedSets[updatedSets.length - 1].restAfter = Math.max(0, restDuration);
     }
 
     set({
@@ -103,13 +113,23 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
   },
 
   tickTimer: () => {
-    set((state) => ({
-      timerSeconds: state.timerSeconds + 1,
-    }));
+    const { session, timerSeconds, restTargetSeconds } = get();
+
+    if (session?.isResting && restTargetSeconds > 0) {
+      // Countdown mode: decrement, stop at 0
+      if (timerSeconds > 0) {
+        set({ timerSeconds: timerSeconds - 1 });
+      }
+      // When it hits 0, keep isRunning true but don't go negative
+      // The UI will handle the "time's up" feedback
+    } else {
+      // Count up mode (working)
+      set({ timerSeconds: timerSeconds + 1 });
+    }
   },
 
   resetTimer: () => {
-    set({ timerSeconds: 0 });
+    set({ timerSeconds: 0, restTargetSeconds: 0 });
   },
 
   finishWorkout: async () => {
@@ -154,6 +174,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
         session: null,
         timerSeconds: 0,
         isRunning: false,
+        restTargetSeconds: 0,
       });
 
       return workout.id;
@@ -168,6 +189,7 @@ export const useWorkoutStore = create<WorkoutState>((set, get) => ({
       session: null,
       timerSeconds: 0,
       isRunning: false,
+      restTargetSeconds: 0,
     });
   },
 }));

@@ -1,5 +1,5 @@
 import { View, Text, Pressable, TextInput, Modal, ScrollView } from 'react-native';
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -23,14 +23,17 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 export default function ActiveWorkout() {
   const { exerciseName } = useLocalSearchParams<{ exerciseName: string }>();
   const { seconds, formattedTime, formatTime } = useTimer();
-  const { session, endSet, startRest, endRest, finishWorkout, cancelWorkout } = useWorkoutStore();
-  const { hapticEnabled } = useSettingsStore();
+  const { session, endSet, startRest, endRest, finishWorkout, cancelWorkout, restTargetSeconds } = useWorkoutStore();
+  const { hapticEnabled, defaultRestTime } = useSettingsStore();
 
   // Input modal state
   const [showInputModal, setShowInputModal] = useState(false);
   const [repsInput, setRepsInput] = useState('');
   const [weightInput, setWeightInput] = useState('');
   const [setDuration, setSetDuration] = useState(0);
+
+  // Rest finished tracking (to fire haptic only once)
+  const restFinishedRef = useRef(false);
 
   // PR tracking
   const { checkPR, refresh: refreshPRs } = usePersonalRecords(session?.exerciseId);
@@ -42,6 +45,22 @@ export default function ActiveWorkout() {
   const currentSet = session ? session.sets.length + 1 : 1;
   const totalSets = session?.plannedSets || 4;
   const isResting = session?.isResting || false;
+
+  // Countdown: rest timer reached 0
+  const restFinished = isResting && restTargetSeconds > 0 && seconds === 0;
+
+  // Fire haptic when rest countdown reaches 0
+  useEffect(() => {
+    if (restFinished && !restFinishedRef.current) {
+      restFinishedRef.current = true;
+      if (hapticEnabled) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    }
+    if (!isResting) {
+      restFinishedRef.current = false;
+    }
+  }, [restFinished, isResting, hapticEnabled]);
 
   // Animated values
   const glowOpacity = useSharedValue(0.3);
@@ -69,7 +88,7 @@ export default function ActiveWorkout() {
     });
 
     // Pulse on state change
-    if (seconds > 0) {
+    if (seconds > 0 || restTargetSeconds > 0) {
       pulseScale.value = withSequence(
         withSpring(1.05, { damping: 6 }),
         withSpring(1, { damping: 8 })
@@ -77,15 +96,25 @@ export default function ActiveWorkout() {
     }
   }, [isResting]);
 
-  // Animate ring progress smoothly
+  // Animate ring progress
   useEffect(() => {
-    const maxSeconds = isResting ? (session?.restTime || 90) : 90;
-    const target = Math.min(seconds / maxSeconds, 1);
-    ringProgress.value = withTiming(target, {
-      duration: 300,
-      easing: Easing.linear,
-    });
-  }, [seconds, isResting]);
+    if (isResting && restTargetSeconds > 0) {
+      // Countdown mode: ring drains from full to empty
+      const target = seconds / restTargetSeconds;
+      ringProgress.value = withTiming(target, {
+        duration: 300,
+        easing: Easing.linear,
+      });
+    } else {
+      // Count up mode: ring fills over 90s
+      const maxSeconds = 90;
+      const target = Math.min(seconds / maxSeconds, 1);
+      ringProgress.value = withTiming(target, {
+        duration: 300,
+        easing: Easing.linear,
+      });
+    }
+  }, [seconds, isResting, restTargetSeconds]);
 
   const glowStyle = useAnimatedStyle(() => ({
     opacity: glowOpacity.value,
@@ -117,6 +146,17 @@ export default function ActiveWorkout() {
     opacity: withTiming(1, { duration: 200 }),
   }));
 
+  // Format countdown display
+  const displayTime = (() => {
+    if (isResting && restTargetSeconds > 0) {
+      // Show countdown MM:SS
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return formattedTime;
+  })();
+
   // Last set weight for quick buttons
   const lastWeight = session?.sets.length
     ? session.sets[session.sets.length - 1].weight
@@ -135,7 +175,7 @@ export default function ActiveWorkout() {
     setShowInputModal(true);
   }, [hapticEnabled, seconds, lastWeight, weightInput]);
 
-  // Confirm set with reps/weight
+  // Confirm set with reps/weight — starts rest countdown
   const handleConfirmSet = useCallback(() => {
     const reps = repsInput ? parseInt(repsInput, 10) : undefined;
     const weight = weightInput ? parseFloat(weightInput) : undefined;
@@ -169,21 +209,25 @@ export default function ActiveWorkout() {
 
     endSet(setDuration, reps, weight);
 
+    // Set rest target from user settings
+    startRest(defaultRestTime);
+
     setRepsInput('');
     setWeightInput('');
     setShowInputModal(false);
-  }, [hapticEnabled, endSet, setDuration, repsInput, weightInput, session?.exerciseId, checkPR]);
+  }, [hapticEnabled, endSet, startRest, defaultRestTime, setDuration, repsInput, weightInput, session?.exerciseId, checkPR]);
 
-  // Skip reps/weight input
+  // Skip reps/weight input — starts rest countdown
   const handleSkipInput = useCallback(() => {
     if (hapticEnabled) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     endSet(setDuration);
+    startRest(defaultRestTime);
     setRepsInput('');
     setWeightInput('');
     setShowInputModal(false);
-  }, [hapticEnabled, endSet, setDuration]);
+  }, [hapticEnabled, endSet, startRest, defaultRestTime, setDuration]);
 
   const handleStopRest = useCallback(async () => {
     if (hapticEnabled) {
@@ -347,10 +391,10 @@ export default function ActiveWorkout() {
 
         {/* Time display */}
         <Text
-          className="text-6xl text-setly-text tracking-wider"
+          className={`text-6xl tracking-wider ${restFinished ? 'text-setly-accent' : 'text-setly-text'}`}
           style={{ fontFamily: 'SpaceMono_700Bold' }}
         >
-          {formattedTime}
+          {displayTime}
         </Text>
       </Animated.View>
 
@@ -369,7 +413,7 @@ export default function ActiveWorkout() {
           className={`text-xs tracking-wider ${isResting ? 'text-setly-accent' : 'text-setly-muted'}`}
           style={{ fontFamily: 'SpaceMono_700Bold' }}
         >
-          {isResting ? 'PAUSA' : 'WORKING'}
+          {restFinished ? 'PAUSA FINITA!' : isResting ? `PAUSA · ${formatTime(defaultRestTime)}` : 'WORKING'}
         </Text>
       </Animated.View>
 
@@ -377,14 +421,24 @@ export default function ActiveWorkout() {
       <View className="absolute bottom-16 w-full px-8">
         <Pressable
           onPress={isResting ? handleStopRest : handleEndSet}
-          className={`py-4 border active:bg-white/5 ${isResting ? 'border-setly-accent bg-setly-accent/5' : 'border-setly-text/50'}`}
+          className={`py-4 border active:bg-white/5 ${
+            restFinished
+              ? 'border-setly-accent bg-setly-accent/20'
+              : isResting
+              ? 'border-setly-accent bg-setly-accent/5'
+              : 'border-setly-text/50'
+          }`}
         >
           <Text
             className={`text-center tracking-widest ${isResting ? 'text-setly-accent' : 'text-setly-text'}`}
             style={{ fontFamily: 'SpaceMono_700Bold' }}
           >
             {isResting
-              ? currentSet >= totalSets ? 'TERMINA ALLENAMENTO' : 'STOP PAUSA'
+              ? currentSet >= totalSets
+                ? 'TERMINA ALLENAMENTO'
+                : restFinished
+                ? 'PROSSIMO SET'
+                : 'STOP PAUSA'
               : 'FINE SET'}
           </Text>
         </Pressable>
