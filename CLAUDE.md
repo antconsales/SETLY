@@ -39,7 +39,7 @@ App di workout tracking per iOS/Android, 100% offline-first. React Native + Expo
 
 ### Phase 3 - Componenti UI
 - [x] Creare `components/ui/ChatBubble.tsx` — Bolla messaggio: user (self-end, border-setly-text/30), assistant (self-start, border-setly-border), tool result (self-center, setly-accent/30, testo piccolo), loading (3 dots animati). SpaceMono font, no border-radius
-- [ ] Creare `components/ui/ModelDownload.tsx` — Card download modello: titolo "DOWNLOAD AI MODEL", subtitle "~200 MB", progress bar (`bg-setly-accent h-1`), bottone download stile CTA SETLY, stati (download/downloading/initializing/ready)
+- [x] Creare `components/ui/ModelDownload.tsx` — Card download modello: titolo "DOWNLOAD AI MODEL", subtitle "~200 MB", progress bar (`bg-setly-accent h-1`), bottone download stile CTA SETLY, stati (download/downloading/initializing/ready)
 - [ ] Creare `components/ui/AIFab.tsx` — Floating action button 48x48, posizione `absolute bottom-24 right-6`, `border border-setly-accent bg-setly-accent/10`, testo "AI" in SpaceMono_700Bold, `onPress → router.push('/ai/chat')`. Aggiornare `components/ui/index.ts` con tutti i nuovi export
 
 ### Phase 4 - Schermata Chat AI
