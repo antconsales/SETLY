@@ -5,14 +5,20 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  useAnimatedProps,
   withRepeat,
   withSequence,
   withTiming,
+  withSpring,
+  Easing,
+  interpolateColor,
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { useWorkoutStore, useSettingsStore } from '@/stores';
 import { useTimer, usePersonalRecords } from '@/hooks';
 import { PRBadge } from '@/components/ui';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function ActiveWorkout() {
   const { exerciseName } = useLocalSearchParams<{ exerciseName: string }>();
@@ -37,9 +43,13 @@ export default function ActiveWorkout() {
   const totalSets = session?.plannedSets || 4;
   const isResting = session?.isResting || false;
 
-  // Glow animation
+  // Animated values
   const glowOpacity = useSharedValue(0.3);
+  const ringProgress = useSharedValue(0);
+  const stateTransition = useSharedValue(isResting ? 1 : 0);
+  const pulseScale = useSharedValue(1);
 
+  // Glow animation
   useEffect(() => {
     glowOpacity.value = withRepeat(
       withSequence(
@@ -51,9 +61,66 @@ export default function ActiveWorkout() {
     );
   }, []);
 
+  // State transition animation (working ↔ resting)
+  useEffect(() => {
+    stateTransition.value = withTiming(isResting ? 1 : 0, {
+      duration: 400,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+    });
+
+    // Pulse on state change
+    if (seconds > 0) {
+      pulseScale.value = withSequence(
+        withSpring(1.05, { damping: 6 }),
+        withSpring(1, { damping: 8 })
+      );
+    }
+  }, [isResting]);
+
+  // Animate ring progress smoothly
+  useEffect(() => {
+    const maxSeconds = isResting ? (session?.restTime || 90) : 90;
+    const target = Math.min(seconds / maxSeconds, 1);
+    ringProgress.value = withTiming(target, {
+      duration: 300,
+      easing: Easing.linear,
+    });
+  }, [seconds, isResting]);
+
   const glowStyle = useAnimatedStyle(() => ({
     opacity: glowOpacity.value,
   }));
+
+  const containerPulse = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+  }));
+
+  // Animated ring stroke color
+  const radius = 100;
+  const strokeWidth = 3;
+  const circumference = 2 * Math.PI * radius;
+
+  const animatedRingProps = useAnimatedProps(() => {
+    const progress = ringProgress.value * circumference;
+    return {
+      strokeDashoffset: circumference - progress,
+      stroke: interpolateColor(
+        stateTransition.value,
+        [0, 1],
+        ['#E5E5E5', '#4ADE80']
+      ),
+    };
+  });
+
+  // Status text style
+  const statusStyle = useAnimatedStyle(() => ({
+    opacity: withTiming(1, { duration: 200 }),
+  }));
+
+  // Last set weight for quick buttons
+  const lastWeight = session?.sets.length
+    ? session.sets[session.sets.length - 1].weight
+    : null;
 
   // Open modal to input reps/weight
   const handleEndSet = useCallback(() => {
@@ -61,8 +128,12 @@ export default function ActiveWorkout() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     setSetDuration(seconds);
+    // Pre-fill weight from last set
+    if (lastWeight && !weightInput) {
+      setWeightInput(lastWeight.toString());
+    }
     setShowInputModal(true);
-  }, [hapticEnabled, seconds]);
+  }, [hapticEnabled, seconds, lastWeight, weightInput]);
 
   // Confirm set with reps/weight
   const handleConfirmSet = useCallback(() => {
@@ -75,7 +146,6 @@ export default function ActiveWorkout() {
       const volume = weight * reps;
 
       if (prCheck.isNewWeightPR || prCheck.isNewVolumePR) {
-        // Show PR celebration!
         if (prCheck.isNewWeightPR && prCheck.isNewVolumePR) {
           setPrType('both');
           setPrPrevValue(prCheck.previousMaxWeight);
@@ -99,7 +169,6 @@ export default function ActiveWorkout() {
 
     endSet(setDuration, reps, weight);
 
-    // Reset inputs
     setRepsInput('');
     setWeightInput('');
     setShowInputModal(false);
@@ -122,7 +191,6 @@ export default function ActiveWorkout() {
     }
 
     if (currentSet >= totalSets) {
-      // Workout complete - save to database
       const workoutId = await finishWorkout();
       router.replace({
         pathname: '/workout/summary',
@@ -144,7 +212,6 @@ export default function ActiveWorkout() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     }
 
-    // Save current set if in progress (not resting)
     if (!isResting && seconds > 0) {
       endSet(seconds);
     }
@@ -161,12 +228,10 @@ export default function ActiveWorkout() {
     });
   }, [hapticEnabled, isResting, seconds, endSet, finishWorkout, exerciseName, session, formatTime]);
 
-  // Timer progress
-  const radius = 100;
-  const strokeWidth = 3;
-  const circumference = 2 * Math.PI * radius;
-  const maxSeconds = 90;
-  const progress = Math.min(seconds / maxSeconds, 1) * circumference;
+  // Quick weight buttons (last weight ± adjustments)
+  const quickWeights = lastWeight
+    ? [lastWeight - 5, lastWeight - 2.5, lastWeight, lastWeight + 2.5, lastWeight + 5].filter((w) => w > 0)
+    : [20, 40, 60, 80, 100];
 
   return (
     <View className="flex-1 bg-setly-black items-center justify-center px-8">
@@ -178,15 +243,24 @@ export default function ActiveWorkout() {
           newValue={prNewValue}
           onComplete={() => {
             setShowPRBadge(false);
-            refreshPRs(); // Refresh PRs after setting new one
+            refreshPRs();
           }}
         />
       )}
 
       {/* Battery indicator - top right */}
       <View className="absolute top-14 right-6 flex-row gap-0.5">
-        {[...Array(5)].map((_, i) => (
-          <View key={i} className="w-1.5 h-3 bg-setly-muted rounded-sm" />
+        {[...Array(totalSets)].map((_, i) => (
+          <View
+            key={i}
+            className={`w-1.5 h-3 ${
+              i < (isResting ? currentSet - 1 : currentSet - 1)
+                ? 'bg-setly-accent'
+                : i === (isResting ? currentSet - 1 : currentSet - 1)
+                ? isResting ? 'bg-setly-accent/50' : 'bg-setly-text'
+                : 'bg-setly-border'
+            }`}
+          />
         ))}
       </View>
 
@@ -198,12 +272,36 @@ export default function ActiveWorkout() {
         {(exerciseName || session?.exerciseName || 'WORKOUT').toUpperCase()}
       </Text>
 
+      {/* Completed sets display */}
+      {session && session.sets.length > 0 && (
+        <View className="absolute top-40 left-8 right-8">
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+            {session.sets.map((set, index) => (
+              <View key={index} className="mr-3 px-3 py-2 border border-setly-border">
+                <Text
+                  className="text-setly-muted text-xs"
+                  style={{ fontFamily: 'SpaceMono_400Regular' }}
+                >
+                  SET {set.setNumber}
+                </Text>
+                <Text
+                  className="text-setly-text text-sm"
+                  style={{ fontFamily: 'SpaceMono_700Bold' }}
+                >
+                  {set.weight ? `${set.weight}kg` : '-'} × {set.reps || '-'}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Timer Container */}
-      <View className="items-center justify-center">
+      <Animated.View style={containerPulse} className="items-center justify-center">
         {/* Glow effect */}
         <Animated.View
           style={glowStyle}
-          className="absolute w-72 h-72 rounded-full bg-white/10"
+          className={`absolute w-72 h-72 rounded-full ${isResting ? 'bg-setly-accent/10' : 'bg-white/10'}`}
         />
 
         {/* Progress ring */}
@@ -217,19 +315,18 @@ export default function ActiveWorkout() {
             strokeWidth={strokeWidth}
             fill="none"
           />
-          {/* Progress ring */}
-          <Circle
+          {/* Animated progress ring */}
+          <AnimatedCircle
             cx={120}
             cy={120}
             r={radius}
-            stroke={isResting ? '#4ADE80' : '#E5E5E5'}
             strokeWidth={strokeWidth}
             fill="none"
             strokeDasharray={circumference}
-            strokeDashoffset={circumference - progress}
             strokeLinecap="round"
             rotation={-90}
             origin="120, 120"
+            animatedProps={animatedRingProps}
           />
           {/* Tick marks */}
           {Array.from({ length: 60 }).map((_, i) => {
@@ -255,7 +352,7 @@ export default function ActiveWorkout() {
         >
           {formattedTime}
         </Text>
-      </View>
+      </Animated.View>
 
       {/* Set counter */}
       <Text
@@ -265,59 +362,30 @@ export default function ActiveWorkout() {
         {isResting ? currentSet - 1 : currentSet} / {totalSets}
       </Text>
 
-      {/* Status indicator */}
-      <Text
-        className="text-setly-muted text-xs mt-2 tracking-wider"
-        style={{ fontFamily: 'SpaceMono_400Regular' }}
-      >
-        {isResting ? 'RESTING' : 'WORKING'}
-      </Text>
-
-      {/* Pause indicator */}
-      {isResting && (
+      {/* Status indicator with color */}
+      <Animated.View style={statusStyle} className="flex-row items-center gap-2 mt-2">
+        <View className={`w-2 h-2 rounded-full ${isResting ? 'bg-setly-accent' : 'bg-setly-text'}`} />
         <Text
-          className="absolute right-8 text-setly-accent text-2xl"
-          style={{ fontFamily: 'SpaceMono_700Bold', top: '50%' }}
+          className={`text-xs tracking-wider ${isResting ? 'text-setly-accent' : 'text-setly-muted'}`}
+          style={{ fontFamily: 'SpaceMono_700Bold' }}
         >
-          ║
+          {isResting ? 'PAUSA' : 'WORKING'}
         </Text>
-      )}
-
-      {/* Completed sets display */}
-      {session && session.sets.length > 0 && (
-        <View className="absolute top-40 left-8 right-8">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
-            {session.sets.map((set, index) => (
-              <View key={index} className="mr-3 px-3 py-2 border border-setly-border rounded">
-                <Text
-                  className="text-setly-muted text-xs"
-                  style={{ fontFamily: 'SpaceMono_400Regular' }}
-                >
-                  SET {set.setNumber}
-                </Text>
-                <Text
-                  className="text-setly-text text-sm"
-                  style={{ fontFamily: 'SpaceMono_700Bold' }}
-                >
-                  {set.weight ? `${set.weight}kg` : '-'} × {set.reps || '-'}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+      </Animated.View>
 
       {/* Action button */}
       <View className="absolute bottom-16 w-full px-8">
         <Pressable
           onPress={isResting ? handleStopRest : handleEndSet}
-          className={`py-4 border active:bg-white/5 ${isResting ? 'border-setly-accent/50' : 'border-setly-text/50'}`}
+          className={`py-4 border active:bg-white/5 ${isResting ? 'border-setly-accent bg-setly-accent/5' : 'border-setly-text/50'}`}
         >
           <Text
             className={`text-center tracking-widest ${isResting ? 'text-setly-accent' : 'text-setly-text'}`}
             style={{ fontFamily: 'SpaceMono_700Bold' }}
           >
-            {isResting ? 'STOP PAUSA' : 'FINE SET'}
+            {isResting
+              ? currentSet >= totalSets ? 'TERMINA ALLENAMENTO' : 'STOP PAUSA'
+              : 'FINE SET'}
           </Text>
         </Pressable>
 
@@ -336,21 +404,29 @@ export default function ActiveWorkout() {
       <Modal
         visible={showInputModal}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowInputModal(false)}
       >
-        <View className="flex-1 bg-black/80 justify-center items-center px-8">
-          <View className="w-full bg-setly-black border border-setly-border p-6">
+        <View className="flex-1 bg-black/80 justify-end">
+          <View className="bg-setly-black border-t border-setly-border p-6 pb-10">
             {/* Modal header */}
-            <Text
-              className="text-setly-text text-lg tracking-widest text-center mb-6"
-              style={{ fontFamily: 'SpaceMono_700Bold' }}
-            >
-              SET {currentSet} COMPLETATO
-            </Text>
+            <View className="flex-row justify-between items-center mb-6">
+              <Text
+                className="text-setly-text text-lg tracking-widest"
+                style={{ fontFamily: 'SpaceMono_700Bold' }}
+              >
+                SET {currentSet}
+              </Text>
+              <Text
+                className="text-setly-muted text-xs tracking-wider"
+                style={{ fontFamily: 'SpaceMono_400Regular' }}
+              >
+                {setDuration}s
+              </Text>
+            </View>
 
             {/* Weight input */}
-            <View className="mb-4">
+            <View className="mb-3">
               <Text
                 className="text-setly-muted text-xs tracking-wider mb-2"
                 style={{ fontFamily: 'SpaceMono_400Regular' }}
@@ -368,8 +444,31 @@ export default function ActiveWorkout() {
               />
             </View>
 
+            {/* Quick weight buttons */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4">
+              <View className="flex-row gap-2">
+                {quickWeights.map((w) => (
+                  <Pressable
+                    key={w}
+                    onPress={() => {
+                      if (hapticEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setWeightInput(w.toString());
+                    }}
+                    className={`px-3 py-1.5 border ${weightInput === w.toString() ? 'border-setly-accent bg-setly-accent/10' : 'border-setly-border'}`}
+                  >
+                    <Text
+                      className={`text-xs ${weightInput === w.toString() ? 'text-setly-accent' : 'text-setly-text'}`}
+                      style={{ fontFamily: 'SpaceMono_700Bold' }}
+                    >
+                      {w}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+
             {/* Reps input */}
-            <View className="mb-6">
+            <View className="mb-3">
               <Text
                 className="text-setly-muted text-xs tracking-wider mb-2"
                 style={{ fontFamily: 'SpaceMono_400Regular' }}
@@ -389,14 +488,14 @@ export default function ActiveWorkout() {
 
             {/* Quick reps buttons */}
             <View className="flex-row justify-center gap-3 mb-6">
-              {[6, 8, 10, 12, 15].map((num) => (
+              {[5, 6, 8, 10, 12, 15].map((num) => (
                 <Pressable
                   key={num}
                   onPress={() => {
                     if (hapticEnabled) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     setRepsInput(num.toString());
                   }}
-                  className={`px-4 py-2 border ${repsInput === num.toString() ? 'border-setly-accent bg-setly-accent/10' : 'border-setly-border'}`}
+                  className={`px-3 py-2 border ${repsInput === num.toString() ? 'border-setly-accent bg-setly-accent/10' : 'border-setly-border'}`}
                 >
                   <Text
                     className={`text-sm ${repsInput === num.toString() ? 'text-setly-accent' : 'text-setly-text'}`}
@@ -411,7 +510,7 @@ export default function ActiveWorkout() {
             {/* Confirm button */}
             <Pressable
               onPress={handleConfirmSet}
-              className="py-4 border border-setly-accent bg-setly-accent/10 mb-3"
+              className="py-4 border border-setly-accent bg-setly-accent/10 mb-3 active:bg-setly-accent/20"
             >
               <Text
                 className="text-setly-accent text-center tracking-widest"
