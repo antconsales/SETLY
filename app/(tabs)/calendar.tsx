@@ -1,7 +1,17 @@
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  FadeIn,
+  FadeOut,
+  SlideInRight,
+  SlideInLeft,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useWorkoutHistory } from '@/hooks';
 import { useSettingsStore, useScheduleStore } from '@/stores';
 import { MonthView } from '@/components/ui/MonthView';
@@ -12,6 +22,7 @@ export default function Calendar() {
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('right');
 
   const {
     workoutsByDay,
@@ -36,6 +47,9 @@ export default function Calendar() {
     (acc, dayWorkouts) => acc + dayWorkouts.length,
     0
   );
+
+  // Calculate scheduled count for this month
+  const scheduledCount = scheduledWorkouts.filter((sw) => !sw.completed).length;
 
   // Fetch data when month changes
   useEffect(() => {
@@ -64,10 +78,21 @@ export default function Calendar() {
     });
   }, [scheduledWorkouts, formatDateKey]);
 
+  // Check if can navigate to next month
+  const maxDate = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 2);
+    return d;
+  }, []);
+
+  const canGoNext = currentYear < maxDate.getFullYear() ||
+    (currentYear === maxDate.getFullYear() && currentMonth < maxDate.getMonth());
+
   const handlePrevMonth = useCallback(() => {
     if (hapticEnabled) {
       Haptics.selectionAsync();
     }
+    setSlideDirection('left');
     if (currentMonth === 0) {
       setCurrentMonth(11);
       setCurrentYear((y) => y - 1);
@@ -78,18 +103,12 @@ export default function Calendar() {
   }, [currentMonth, hapticEnabled]);
 
   const handleNextMonth = useCallback(() => {
-    // Allow going up to 2 months in the future for scheduling
-    const maxDate = new Date();
-    maxDate.setMonth(maxDate.getMonth() + 2);
-
-    if (currentYear > maxDate.getFullYear() ||
-        (currentYear === maxDate.getFullYear() && currentMonth >= maxDate.getMonth())) {
-      return;
-    }
+    if (!canGoNext) return;
 
     if (hapticEnabled) {
       Haptics.selectionAsync();
     }
+    setSlideDirection('right');
     if (currentMonth === 11) {
       setCurrentMonth(0);
       setCurrentYear((y) => y + 1);
@@ -97,7 +116,7 @@ export default function Calendar() {
       setCurrentMonth((m) => m + 1);
     }
     setSelectedDate(null);
-  }, [currentMonth, currentYear, hapticEnabled]);
+  }, [currentMonth, currentYear, hapticEnabled, canGoNext]);
 
   const handleSelectDate = useCallback((date: Date) => {
     if (hapticEnabled) {
@@ -120,17 +139,42 @@ export default function Calendar() {
     router.push('/schedule/create');
   }, [hapticEnabled]);
 
-  // Check if can navigate to next month
-  const maxDate = useMemo(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 2);
-    return d;
-  }, []);
+  const handleGoToday = useCallback(() => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    const now = new Date();
+    setSlideDirection(
+      currentYear > now.getFullYear() ||
+      (currentYear === now.getFullYear() && currentMonth > now.getMonth())
+        ? 'left'
+        : 'right'
+    );
+    setCurrentYear(now.getFullYear());
+    setCurrentMonth(now.getMonth());
+    setSelectedDate(null);
+  }, [hapticEnabled, currentYear, currentMonth]);
 
-  const canGoNext = currentYear < maxDate.getFullYear() ||
-    (currentYear === maxDate.getFullYear() && currentMonth < maxDate.getMonth());
+  // Swipe gesture for month navigation
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-30, 30])
+    .onEnd((event) => {
+      if (event.translationX < -50) {
+        // Swiped left → next month
+        handleNextMonth();
+      } else if (event.translationX > 50) {
+        // Swiped right → prev month
+        handlePrevMonth();
+      }
+    });
+
+  const isCurrentMonth =
+    currentYear === today.getFullYear() && currentMonth === today.getMonth();
 
   const isLoading = loadingHistory || loadingScheduled;
+
+  // Key for forcing re-mount of animated MonthView
+  const monthKey = `${currentYear}-${currentMonth}`;
 
   // Show day detail if a date is selected
   if (selectedDate) {
@@ -150,116 +194,141 @@ export default function Calendar() {
   }
 
   return (
-    <View className="flex-1 bg-setly-black pt-12 px-4">
-      {/* Navigation arrows */}
-      <View className="flex-row justify-between items-center mb-6 px-2">
-        <Pressable onPress={handlePrevMonth} className="px-4 py-2">
-          <Text
-            className="text-setly-text text-lg"
-            style={{ fontFamily: 'SpaceMono_700Bold' }}
-          >
-            ←
-          </Text>
-        </Pressable>
-
-        <Pressable onPress={handleNextMonth} className="px-4 py-2" disabled={!canGoNext}>
-          <Text
-            className={`text-lg ${canGoNext ? 'text-setly-text' : 'text-setly-muted/30'}`}
-            style={{ fontFamily: 'SpaceMono_700Bold' }}
-          >
-            →
-          </Text>
-        </Pressable>
-      </View>
-
-      {/* Loading indicator */}
-      {isLoading ? (
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator color="#E5E5E5" />
-        </View>
-      ) : (
-        <>
-          {/* Month view */}
-          <MonthView
-            year={currentYear}
-            month={currentMonth}
-            selectedDate={selectedDate}
-            onSelectDate={handleSelectDate}
-            hasWorkouts={hasWorkouts}
-            getWorkoutCount={getWorkoutCount}
-            hasScheduled={hasScheduled}
-          />
-
-          {/* Legend */}
-          <View className="mt-8 px-4">
-            <View className="flex-row items-center gap-2 mb-2">
-              <View className="w-2 h-2 rounded-full bg-setly-accent" />
-              <Text
-                className="text-setly-muted text-xs tracking-wider"
-                style={{ fontFamily: 'SpaceMono_400Regular' }}
-              >
-                COMPLETED
-              </Text>
-            </View>
-            <View className="flex-row items-center gap-2 mb-2">
-              <View className="w-2 h-2 rounded-full border border-setly-text" />
-              <Text
-                className="text-setly-muted text-xs tracking-wider"
-                style={{ fontFamily: 'SpaceMono_400Regular' }}
-              >
-                SCHEDULED
-              </Text>
-            </View>
-            <View className="flex-row items-center gap-2">
-              <View className="w-4 h-4 rounded-full bg-setly-border items-center justify-center">
-                <Text className="text-setly-text text-[8px]">•</Text>
-              </View>
-              <Text
-                className="text-setly-muted text-xs tracking-wider"
-                style={{ fontFamily: 'SpaceMono_400Regular' }}
-              >
-                TODAY
-              </Text>
-            </View>
-          </View>
-
-          {/* Quick stats */}
-          <View className="absolute bottom-24 left-0 right-0 px-6">
-            <View className="flex-row justify-center gap-8">
-              <View className="items-center">
-                <Text
-                  className="text-setly-text text-2xl"
-                  style={{ fontFamily: 'SpaceMono_700Bold' }}
-                >
-                  {monthlyWorkoutCount > 0 ? monthlyWorkoutCount : '—'}
-                </Text>
-                <Text
-                  className="text-setly-muted text-xs tracking-wider"
-                  style={{ fontFamily: 'SpaceMono_400Regular' }}
-                >
-                  THIS MONTH
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Schedule button */}
-          <Pressable
-            onPress={handleSchedule}
-            className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-setly-border items-center justify-center"
-          >
+    <GestureDetector gesture={swipeGesture}>
+      <View className="flex-1 bg-setly-black pt-12 px-4">
+        {/* Header with month/year + navigation */}
+        <View className="flex-row justify-between items-center mb-2 px-2">
+          <Pressable onPress={handlePrevMonth} className="px-3 py-2 active:bg-white/5">
             <Text
-              className="text-setly-text text-2xl"
-              style={{ fontFamily: 'SpaceMono_400Regular' }}
+              className="text-setly-text text-lg"
+              style={{ fontFamily: 'SpaceMono_700Bold' }}
             >
-              +
+              ←
             </Text>
           </Pressable>
-        </>
-      )}
 
-      {/* Decorative elements */}
-      <View className="absolute left-0 top-1/3 w-8 h-px bg-setly-border" />
-    </View>
+          <Pressable onPress={!isCurrentMonth ? handleGoToday : undefined}>
+            <Text
+              className="text-setly-muted text-xs tracking-wider"
+              style={{ fontFamily: 'SpaceMono_400Regular' }}
+            >
+              {!isCurrentMonth ? 'TAP FOR TODAY' : `${currentYear}`}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={handleNextMonth}
+            className="px-3 py-2 active:bg-white/5"
+            disabled={!canGoNext}
+          >
+            <Text
+              className={`text-lg ${canGoNext ? 'text-setly-text' : 'text-setly-muted/30'}`}
+              style={{ fontFamily: 'SpaceMono_700Bold' }}
+            >
+              →
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Loading indicator */}
+        {isLoading ? (
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator color="#E5E5E5" />
+          </View>
+        ) : (
+          <>
+            {/* Animated Month view */}
+            <Animated.View
+              key={monthKey}
+              entering={slideDirection === 'right' ? SlideInRight.duration(200) : SlideInLeft.duration(200)}
+            >
+              <MonthView
+                year={currentYear}
+                month={currentMonth}
+                selectedDate={selectedDate}
+                onSelectDate={handleSelectDate}
+                hasWorkouts={hasWorkouts}
+                getWorkoutCount={getWorkoutCount}
+                hasScheduled={hasScheduled}
+              />
+            </Animated.View>
+
+            {/* Legend */}
+            <View className="mt-6 px-4">
+              <View className="flex-row gap-6">
+                <View className="flex-row items-center gap-2">
+                  <View className="w-2 h-2 rounded-full bg-setly-accent" />
+                  <Text
+                    className="text-setly-muted text-xs tracking-wider"
+                    style={{ fontFamily: 'SpaceMono_400Regular' }}
+                  >
+                    COMPLETED
+                  </Text>
+                </View>
+                <View className="flex-row items-center gap-2">
+                  <View className="w-2 h-2 rounded-full border border-setly-text" />
+                  <Text
+                    className="text-setly-muted text-xs tracking-wider"
+                    style={{ fontFamily: 'SpaceMono_400Regular' }}
+                  >
+                    SCHEDULED
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Quick stats */}
+            <View className="absolute bottom-24 left-0 right-0 px-6">
+              <View className="flex-row justify-center gap-10">
+                <View className="items-center">
+                  <Text
+                    className="text-setly-text text-2xl"
+                    style={{ fontFamily: 'SpaceMono_700Bold' }}
+                  >
+                    {monthlyWorkoutCount > 0 ? monthlyWorkoutCount : '—'}
+                  </Text>
+                  <Text
+                    className="text-setly-muted text-xs tracking-wider"
+                    style={{ fontFamily: 'SpaceMono_400Regular' }}
+                  >
+                    COMPLETATI
+                  </Text>
+                </View>
+                <View className="items-center">
+                  <Text
+                    className="text-setly-text text-2xl"
+                    style={{ fontFamily: 'SpaceMono_700Bold' }}
+                  >
+                    {scheduledCount > 0 ? scheduledCount : '—'}
+                  </Text>
+                  <Text
+                    className="text-setly-muted text-xs tracking-wider"
+                    style={{ fontFamily: 'SpaceMono_400Regular' }}
+                  >
+                    PROGRAMMATI
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Schedule button */}
+            <Pressable
+              onPress={handleSchedule}
+              className="absolute bottom-6 right-6 w-12 h-12 border border-setly-border items-center justify-center active:bg-white/5"
+            >
+              <Text
+                className="text-setly-text text-2xl"
+                style={{ fontFamily: 'SpaceMono_400Regular' }}
+              >
+                +
+              </Text>
+            </Pressable>
+          </>
+        )}
+
+        {/* Decorative elements */}
+        <View className="absolute left-0 top-1/3 w-8 h-px bg-setly-border" />
+      </View>
+    </GestureDetector>
   );
 }
