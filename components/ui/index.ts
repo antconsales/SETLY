@@ -10,3 +10,4 @@ export { StreakBadge } from './StreakBadge';
 export { AchievementPopup } from './AchievementPopup';
 export { ChatBubble } from './ChatBubble';
 export { ModelDownload } from './ModelDownload';
+export { AIFab } from './AIFab';
