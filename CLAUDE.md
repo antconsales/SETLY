@@ -32,7 +32,7 @@ App di workout tracking per iOS/Android, 100% offline-first. React Native + Expo
 - [x] Creare `lib/llm/responseParser.ts` — Parser per output modello: estrae `[FUNC_CALL] {"name":..., "arguments":...}` o testo libero, gestisce JSON malformato
 - [x] Creare `lib/llm/modelManager.ts` — Download GGUF con progress via `expo-file-system`, cache in `documentDirectory/models/`, init/release `LlamaContext` da `llama.rn`, gestione stati (not_downloaded, downloading, downloaded, loading, ready, error)
 - [x] Creare `lib/llm/toolExecutor.ts` — Dispatcher switch/case su 18 tool names → chiama store Zustand/calcoli da `lib/calculations.ts`. Accetta `StoreRefs` interface per ricevere azioni dagli store senza usare hooks direttamente
-- [ ] Creare `lib/llm/chatService.ts` — Orchestrazione completa: build prompt da history + system prompt → `context.completion()` → parse response → execute tool → re-prompt per risposta NL. Max 3 tool calls per turno, history limitata a 10 messaggi
+- [x] Creare `lib/llm/chatService.ts` — Orchestrazione completa: build prompt da history + system prompt → `context.completion()` → parse response → execute tool → re-prompt per risposta NL. Max 3 tool calls per turno, history limitata a 10 messaggi
 
 ### Phase 2 - State Management
 - [ ] Creare `stores/chatStore.ts` — Zustand store: `messages: ChatMessage[]`, `isGenerating`, `modelStatus: ModelStatus`. Solo `modelStatus.state` persistito in AsyncStorage. Aggiornare `stores/index.ts` con export
