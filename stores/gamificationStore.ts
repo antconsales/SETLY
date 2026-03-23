@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { db } from '@/db/client';
-import { userStats, achievements, workouts, sets } from '@/db/schema';
+import { userStats, achievements as achievementsTable, workouts, sets } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
 export interface UserStatsData {
@@ -125,7 +125,7 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
 
   fetchAchievements: async () => {
     try {
-      const achievementsData = await db.select().from(achievements);
+      const achievementsData = await db.select().from(achievementsTable);
 
       const mapped = achievementsData.map((a) => ({
         id: a.id,
@@ -199,9 +199,9 @@ export const useGamificationStore = create<GamificationState>((set, get) => ({
       const achievement = allAchievements.find((a) => a.key === key && !a.isUnlocked);
       if (achievement) {
         await db
-          .update(achievements)
+          .update(achievementsTable)
           .set({ isUnlocked: true, unlockedAt: now })
-          .where(eq(achievements.key, key));
+          .where(eq(achievementsTable.key, key));
 
         xpGained += achievement.xpReward || 0;
         newlyUnlockedAchievements.push({ ...achievement, isUnlocked: true, unlockedAt: now });

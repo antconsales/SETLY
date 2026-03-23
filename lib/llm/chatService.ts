@@ -27,7 +27,7 @@ const COMPLETION_PARAMS = {
   temperature: 0.7,
   top_p: 0.9,
   top_k: 40,
-  stop: ['<end_of_turn>', '<start_of_turn>'],
+  stop: ['<end_of_turn>', '<start_of_turn>'] as string[],
 } as const;
 
 // --- Types ---
