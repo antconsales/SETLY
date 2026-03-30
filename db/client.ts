@@ -262,11 +262,19 @@ export async function seedGamification() {
   }
 }
 
-// Initialize database - create tables and seed
+// Initialize database - create tables, run migrations, and seed
 export async function initDatabase() {
   try {
     // Create tables first (synchronous)
     createTables();
+
+    // Run any pending migrations
+    const { runMigrations } = require('./migrations/migrate');
+    const applied = runMigrations(expo);
+    if (applied > 0) {
+      console.log(`Applied ${applied} migration(s)`);
+    }
+
     // Then seed default data
     await seedExercises();
     await seedTemplates();

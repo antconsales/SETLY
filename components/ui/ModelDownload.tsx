@@ -5,7 +5,6 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
-  useEffect as useReanimatedEffect,
 } from 'react-native-reanimated';
 import { useEffect } from 'react';
 import { useChatStore } from '@/stores';

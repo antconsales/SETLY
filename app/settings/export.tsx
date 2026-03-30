@@ -4,10 +4,12 @@ import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/stores';
 import { exportAndShareJSON, exportAndShareCSV, gatherExportData } from '@/lib/export';
+import { pickAndImportJSON } from '@/lib/import';
 
 export default function ExportScreen() {
   const { hapticEnabled } = useSettingsStore();
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [stats, setStats] = useState<{ workouts: number; sets: number } | null>(null);
 
   const handleBack = () => {
@@ -72,6 +74,38 @@ export default function ExportScreen() {
     }
   };
 
+  const handleImportJSON = async () => {
+    if (hapticEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    setIsImporting(true);
+    try {
+      const result = await pickAndImportJSON();
+
+      if (!result.success) {
+        if (result.error !== 'Nessun file selezionato') {
+          Alert.alert('Errore', result.error || 'Importazione fallita');
+        }
+        return;
+      }
+
+      if (hapticEnabled) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+
+      Alert.alert(
+        'Importazione completata',
+        `Importati:\n• ${result.workoutsImported} workout\n• ${result.setsImported} set\n• ${result.exercisesImported} nuovi esercizi`
+      );
+    } catch (error) {
+      console.error('Error importing:', error);
+      Alert.alert('Errore', "Impossibile importare i dati. Verifica il formato del file.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <View className="flex-1 bg-setly-black">
       {/* Header */}
@@ -89,13 +123,13 @@ export default function ExportScreen() {
           className="text-setly-text text-2xl tracking-widest"
           style={{ fontFamily: 'SpaceMono_700Bold' }}
         >
-          ESPORTA DATI
+          DATI
         </Text>
         <Text
           className="text-setly-muted text-sm mt-2"
           style={{ fontFamily: 'SpaceMono_400Regular' }}
         >
-          Esporta i tuoi workout e statistiche
+          Esporta o importa i tuoi workout e statistiche
         </Text>
       </View>
 
@@ -223,19 +257,58 @@ export default function ExportScreen() {
           </View>
         </Pressable>
 
+        {/* Import section */}
+        <Text
+          className="text-setly-muted text-xs tracking-wider mb-4"
+          style={{ fontFamily: 'SpaceMono_400Regular' }}
+        >
+          IMPORTA DATI
+        </Text>
+
+        <Pressable
+          onPress={handleImportJSON}
+          disabled={isImporting}
+          className={`border border-setly-border p-4 mb-6 ${isImporting ? 'opacity-50' : ''}`}
+        >
+          <View className="flex-row justify-between items-center">
+            <View>
+              <Text
+                className="text-setly-text text-lg"
+                style={{ fontFamily: 'SpaceMono_700Bold' }}
+              >
+                IMPORTA JSON
+              </Text>
+              <Text
+                className="text-setly-muted text-xs mt-1"
+                style={{ fontFamily: 'SpaceMono_400Regular' }}
+              >
+                {isImporting ? 'Importazione in corso...' : 'Ripristina da un backup SETLY'}
+              </Text>
+            </View>
+            <Text
+              className="text-setly-muted text-xl"
+              style={{ fontFamily: 'SpaceMono_700Bold' }}
+            >
+              ←
+            </Text>
+          </View>
+        </Pressable>
+
         {/* Info */}
         <View className="border border-setly-border/50 p-4 bg-setly-border/10">
           <Text
             className="text-setly-muted text-xs"
             style={{ fontFamily: 'SpaceMono_400Regular' }}
           >
-            I dati esportati includono:
+            EXPORT — I dati esportati includono:
             {'\n'}• Tutti i workout completati
             {'\n'}• Dettagli di ogni set (peso, reps)
             {'\n'}• Statistiche e progressi
             {'\n'}• Achievement sbloccati
             {'\n\n'}
-            I file vengono salvati nella cartella documenti dell'app.
+            IMPORT — Importa un file JSON esportato
+            {'\n'}precedentemente da SETLY. I dati vengono
+            {'\n'}uniti a quelli esistenti senza sovrascrivere.
           </Text>
         </View>
 

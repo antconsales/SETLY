@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system';
+import { documentDirectory } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { db } from '@/db/client';
 import { workouts, sets, exercises, userStats, achievements } from '@/db/schema';
@@ -121,7 +122,7 @@ export async function exportAsJSON(): Promise<string> {
   const json = JSON.stringify(data, null, 2);
 
   const fileName = `setly-export-${new Date().toISOString().split('T')[0]}.json`;
-  const filePath = `${FileSystem.documentDirectory}${fileName}`;
+  const filePath = `${documentDirectory}${fileName}`;
 
   await FileSystem.writeAsStringAsync(filePath, json);
 
@@ -161,7 +162,7 @@ export async function exportAsCSV(): Promise<string> {
   const csv = [header, ...rows].join('\n');
 
   const fileName = `setly-export-${new Date().toISOString().split('T')[0]}.csv`;
-  const filePath = `${FileSystem.documentDirectory}${fileName}`;
+  const filePath = `${documentDirectory}${fileName}`;
 
   await FileSystem.writeAsStringAsync(filePath, csv);
 

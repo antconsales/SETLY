@@ -6,6 +6,7 @@ import { useFonts, SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useDatabase } from '@/hooks';
+import { ErrorBoundary } from '@/components/ui';
 import '../global.css';
 
 // Prevent auto-hide splash screen
@@ -34,15 +35,17 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: '#0A0A0A' },
-          animation: 'fade',
-        }}
-      />
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: '#0A0A0A' },
+            animation: 'fade',
+          }}
+        />
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
